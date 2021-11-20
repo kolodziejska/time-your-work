@@ -1,6 +1,7 @@
 import openpyxl
 from openpyxl.styles import Font
 import datetime
+from gui import *
 
 
 def create_empty_file(file: str, task: str, time: str) -> None:
@@ -54,11 +55,11 @@ def find_cell(ws: openpyxl.worksheet, column_range: int, row_range: int,
     return None
 
 
-def write_data(ws: openpyxl.worksheet, task: str, time: int) -> None:
+def write_data(file: str, task: str, time: int) -> None:
     """
     Add task and its time (in hours) to Excel sheet.
 
-    :param ws: sheet to write to.
+    :param file: file to write to.
         The sheet should have pre-defined column names:
         `task_name` for column storing tasks' names and
         `task_time` for column storing tasks' times
@@ -70,6 +71,21 @@ def write_data(ws: openpyxl.worksheet, task: str, time: int) -> None:
     global arial_narrow_font
     global task_name
     global task_time
+
+    if file is None or file == "":
+        return
+
+    # try opening Excel file.
+    try:
+        wb = openpyxl.load_workbook(file)
+        print("File opened successfully")
+    except FileNotFoundError:
+        print(f"File {file} does not exist. Creating one...")
+        create_empty_file(file, task_name, task_time)
+        wb = openpyxl.load_workbook(file)
+        print("File created and opened successfully")
+
+    ws = wb.active
 
     # find boundaries of non-empty cells in sheet `ws`
     max_r = ws.max_row
@@ -101,22 +117,31 @@ def write_data(ws: openpyxl.worksheet, task: str, time: int) -> None:
         ws[time_cell].font = arial_narrow_font
         ws[time_cell].number_format = '0.00'
 
-
-def task_timer() -> int:
-    """Runs simple timer and returns time in seconds."""
-    input("press any key to start timer")
-    start_time = datetime.datetime.utcnow()
-    input("press any key to stop timer")
-    end_time = datetime.datetime.utcnow()
-
-    total_time = (end_time - start_time).total_seconds()
-    return round(total_time)
+    wb.save(file)
+    wb.close()
 
 
-def list_existing_tasks(ws: openpyxl.worksheet) -> None:
-    """Prints the names of the existing tasks in sheet `ws`."""
+def list_existing_tasks(file: str) -> list[str]:
+    """Returns the list of the names of the existing tasks in sheet `ws`."""
 
     global task_name
+
+    if file is None or file == "":
+        return []
+
+    # try opening Excel file.
+    try:
+        wb = openpyxl.load_workbook(file)
+        print("File opened successfully")
+    except FileNotFoundError:
+        print(f"File {file} does not exist. Creating one...")
+        create_empty_file(file, task_name, task_time)
+        wb = openpyxl.load_workbook(file)
+        print("File created and opened successfully")
+
+    ws = wb.active
+    all_tasks = []
+
     # find boundaries of non-empty cells in sheet `ws`
     max_r = ws.max_row
     max_c = ws.max_column
@@ -127,45 +152,74 @@ def list_existing_tasks(ws: openpyxl.worksheet) -> None:
     start_row = task_cell.row + 1
     search_column = task_cell.column
 
-    print("\nExisting tasks:")
-
     for row in range(start_row, max_r + 1):
         task = ws.cell(row=row, column=search_column).value
-        print(f"\t{task}")
+        all_tasks.append(task)
+
+    wb.close()
+
+    return all_tasks
 
 
 if __name__ == '__main__':
 
-    file_name = "time_example.xlsx"
     task_name = "task name"
     task_time = "task time"
+    task_names = []
+    start_time = None
 
     arial_narrow_bold_font = Font(name="Arial Narrow", size=10.5, bold=True)
     arial_narrow_font = Font(name="Arial Narrow", size=10.5)
 
-    try:
-        wb = openpyxl.load_workbook(file_name)
-        print("File opened successfully")
-    except FileNotFoundError:
-        print(f"File {file_name} does not exist. Creating one...")
-        create_empty_file(file_name, task_name, task_time)
-        wb = openpyxl.load_workbook(file_name)
-        print("File created and opened successfully")
+    window = sg.Window('Time Your Work', layout, no_titlebar=True,
+                       grab_anywhere=True, font='Arial 10', size=(520, 320),
+                       finalize=True, use_default_focus=False,
+                       margins=(15, 15))
 
-    active_sheet = wb.active
+    style = sg.ttk.Style()
+    style.configure("TCombobox", borderwidth=0, relief='flat')
 
-    next_task = '1'
+    while True:  # Event Loop
+        event, values = window.read()
+        print(event, values)  # for logging
 
-    while next_task == '1':
+        if event == sg.WIN_CLOSED or event == 'Exit':
+            break
 
-        new_time = task_timer()
-        list_existing_tasks(active_sheet)
-        new_task = input("Enter task name: ")
+        if event == 'start':
+            start_time = datetime.datetime.utcnow()
 
-        write_data(active_sheet, new_task, new_time)
+        if event == 'stop':
+            if start_time is not None:
+                end_time = datetime.datetime.utcnow()
+                total_time = round((end_time - start_time).total_seconds())
+                print("total_time: ", total_time)  # for logging
+                window['-TOTAL TIME-'].update(total_time)
 
-        wb.save(file_name)
+        if event == '-FILENAME-':
+            file_name = str(values["-FILENAME-"])
+            print("file_name:", file_name)  # for logging
+            print("existing task names: ", task_names)  # for logging
+            task_names = list_existing_tasks(file_name)
+            window['-TASK NAMES-'].update(values=task_names)
+            print("existing task names: ", task_names)  # for logging
 
-        next_task = input("Enter 1 for new task or anything else to exit: ")
+        if event == 'Save':
+            file_name = str(values['-FILENAME-'])
+            new_task = str(values['-TASK NAMES-'])
+            new_time = int(window['-TOTAL TIME-'].get())
+            print("file_name:", file_name)  # for logging
+            print("new_task:", new_task)  # for logging
+            print("new_time: ", type(new_time), new_time)  # for logging
+            write_data(file_name, new_task, new_time)
 
-    wb.close()
+        if event == 'New task':
+            # reset timer
+            start_time = None
+            window['-TOTAL TIME-'].update(0)
+            # update existing task names list in Combobox -TASK NAMES-
+            file_name = str(values["-FILENAME-"])
+            task_names = list_existing_tasks(file_name)
+            window['-TASK NAMES-'].update(values=task_names)
+
+    window.close()

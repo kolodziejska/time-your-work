@@ -14,6 +14,7 @@ my_new_theme = {'BACKGROUND': '#f2f2f2',
 
 sg.theme_add_new("my_theme", my_new_theme)
 sg.theme('my_theme')
+task_names = []
 
 column_1 = [[sg.Image(filename='icon.png', size=(60, 60))],
             [sg.Button('start', font='Arial 16 bold', expand_x=True)],
@@ -21,12 +22,14 @@ column_1 = [[sg.Image(filename='icon.png', size=(60, 60))],
             [sg.Sizer(v_pixels=10)],
             [sg.Text('total time', font="Arial 8")],
             [sg.Text('0', key='-TOTAL TIME-', font="Arial 18 bold"),
-             sg.Text('h', font="Arial 18 bold")],
+             sg.Text('s', font="Arial 18 bold")],
             [sg.Sizer(h_pixels=140, v_pixels=10)],
             ]
 
-column_2 = [[sg.Text('File:'), sg.Input(size=30, key='-FILENAME-'),
-             sg.FileBrowse(size=(8, 1),
+column_2 = [[sg.Text('File:'),
+             sg.Input(size=30, key='-FILENAME-', enable_events=True,
+                      readonly=True, disabled_readonly_background_color='#f2f2f2'),
+             sg.FileBrowse(size=(8, 1), target='-FILENAME-',
                            file_types=[('ALL Files', '.xlsx'),
                                        ('ALL Files', '.xls')])],
             [sg.Text('Enter task name or choose existing one from the file:'),
@@ -48,23 +51,3 @@ layout = [[sg.Frame('', column_1, vertical_alignment='top',
           [sg.Sizer(v_pixels=15)],
           [sg.Column(footer, element_justification='right')],
           ]
-
-if __name__ == '__main__':
-    window = sg.Window('Time Your Work', layout, no_titlebar=True,
-                       grab_anywhere=True, font='Arial 10', size=(520, 320),
-                       finalize=True, use_default_focus=False,
-                       margins=(15, 15))
-
-    style = sg.ttk.Style()
-    style.configure("TCombobox", borderwidth=0, relief='flat')
-
-    while True:  # Event Loop
-        event, values = window.read()
-        print(event, values)
-        if event == sg.WIN_CLOSED or event == 'Exit':
-            break
-        if event == 'start':
-            # Update the "output" text element to be the value of "input" element
-            window['-TOTAL TIME-'].update(1)
-
-    window.close()
