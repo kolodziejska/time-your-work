@@ -118,6 +118,8 @@ def write_data(file: str, task: str, time: int, task_label: str,
         task_row = existing_cell.row
         time_cell = f"{time_column_letter}{task_row}"
         existing_value = ws[time_cell].value  # existing_value in hours
+        if existing_value is None:
+            existing_value = 0
         time += existing_value * 3600  # time in seconds
         ws[time_cell] = time / 3600  # write time back in hours
         ws[time_cell].font = arial_narrow_font
@@ -168,7 +170,8 @@ def list_existing_tasks(file: str, task_label: str) -> list[str]:
 
     for row in range(start_row, max_r + 1):
         next_task = ws.cell(row=row, column=search_column).value
-        all_tasks.append(next_task)
+        if next_task is not None:
+            all_tasks.append(next_task)
 
     wb.close()
 
