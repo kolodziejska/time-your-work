@@ -1,6 +1,8 @@
 import openpyxl
 from openpyxl.styles import Font
 import datetime
+import pytz
+from tzlocal import get_localzone
 from gui import *
 
 
@@ -82,9 +84,7 @@ def write_data(file: str, task: str, time: int, task_label: str,
     # try opening Excel file.
     try:
         wb = openpyxl.load_workbook(file)
-        print("File opened successfully")  # for logging
     except FileNotFoundError:
-        print(f"File {file} does not exist.")  # for logging
         raise
 
     ws = wb.active
@@ -146,9 +146,7 @@ def list_existing_tasks(file: str, task_label: str) -> list[str]:
     # try opening Excel file.
     try:
         wb = openpyxl.load_workbook(file)
-        print("File opened successfully")
     except FileNotFoundError:
-        print(f"File {file} does not exist. Try again.")
         raise
 
     ws = wb.active
@@ -184,6 +182,7 @@ if __name__ == '__main__':
     section_opened = False
     task_column_disabled = True
     time_column_disabled = True
+    timer_stopped = True
 
     arial_narrow_bold_font = Font(name="Arial Narrow", size=10.5, bold=True)
     arial_narrow_font = Font(name="Arial Narrow", size=10.5)
@@ -195,34 +194,39 @@ if __name__ == '__main__':
 
     style = sg.ttk.Style()
     style.configure("TCombobox", borderwidth=0, relief='flat')
+    style.configure('Vertical.TScrollbar', background="#ffffff", relief='flat',
+                    borderwidth=0, troughcolor='#f2f2f2')
 
     while True:  # Event Loop
         event, values = window.read()
-        print(event, values)  # for logging
 
         if event == sg.WIN_CLOSED or event == 'Exit':
             break
 
         if event == 'start':
-            start_time = datetime.datetime.utcnow()
+            if timer_stopped:
+                start_time = datetime.datetime.utcnow()
+                local_timezone = get_localzone()
+                timer_start = pytz.utc.localize(start_time).astimezone(local_timezone)
+                timer_stopped = False
+                window['-TIMER MESSAGE-'].update('timer started at')
+                window['-TOTAL TIME HOURS-'].update(f'{timer_start.hour:d}:{timer_start.minute:02d}')
 
         if event == 'stop':
-            if start_time is not None:
+            if not timer_stopped:
                 end_time = datetime.datetime.utcnow()
                 total_time = round((end_time - start_time).total_seconds())
-                print("total_time: ", total_time)  # for logging
+                timer_stopped = True
                 window['-TOTAL TIME-'].update(total_time)
+                window['-TIMER MESSAGE-'].update('total time')
+                window['-TOTAL TIME HOURS-'].update(f'{total_time / 3600:.2f} h')
 
         if event == '-FILENAME-':
             file_name = str(values["-FILENAME-"])
             task_column = str(values['-TASK COLUMN-'])
-            print("file_name:", file_name)  # for logging
-            print("task_column: ", task_column)  # for logging
-            print("existing task names: ", task_names)  # for logging
             try:
                 task_names = list_existing_tasks(file_name, task_column)
                 window['-TASK NAMES-'].update(values=task_names)
-                print("existing task names: ", task_names)  # for logging
             except FileNotFoundError:
                 error_popup(f'ERROR. File {file_name} not found')
             except AttributeError:
@@ -247,13 +251,11 @@ if __name__ == '__main__':
                     error_popup(f'ERROR. No "{task_column}" label in file {file_name}')
                     window['-TASK NAMES-'].update(values=[])
             task_column_disabled = not task_column_disabled
-            print(task_column_disabled)  # for logging
             window['-SET TASK COLUMN-'].update(text='edit' if task_column_disabled else 'set')
             window['-TASK COLUMN-'].update(disabled=task_column_disabled)
 
         if event == '-SET TIME COLUMN-':
             time_column_disabled = not time_column_disabled
-            print(time_column_disabled)  # for logging
             window['-SET TIME COLUMN-'].update(text='edit' if time_column_disabled else 'set')
             window['-TIME COLUMN-'].update(disabled=time_column_disabled)
 
@@ -263,11 +265,6 @@ if __name__ == '__main__':
             new_time = int(window['-TOTAL TIME-'].get())
             task_column = str(values['-TASK COLUMN-'])
             time_column = str(values['-TIME COLUMN-'])
-            print("file_name:", file_name)  # for logging
-            print("new_task:", new_task)  # for logging
-            print("task_column:", task_column)  # for logging
-            print("time_column:", time_column)  # for logging
-            print("new_time: ", type(new_time), new_time)  # for logging
             try:
                 write_data(file_name, new_task, new_time, task_column, time_column)
             except FileNotFoundError:
@@ -278,7 +275,10 @@ if __name__ == '__main__':
         if event == 'New task':
             # reset timer
             start_time = None
+            timer_stopped = True
             window['-TOTAL TIME-'].update(0)
+            window['-TIMER MESSAGE-'].update('total time')
+            window['-TOTAL TIME HOURS-'].update('0 h')
             # update existing task names list in Combobox -TASK NAMES-
             file_name = str(values["-FILENAME-"])
             task_column = str(values['-TASK COLUMN-'])

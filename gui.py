@@ -48,9 +48,9 @@ column_1 = [[sg.Image(filename='icon.png', size=(60, 60))],
             [sg.Button('start', font='Arial 16 bold', expand_x=True)],
             [sg.Button('stop', font='Arial 16 bold', expand_x=True)],
             [sg.Sizer(v_pixels=10)],
-            [sg.Text('total time', font="Arial 8")],
-            [sg.Text('0', key='-TOTAL TIME-', font="Arial 18 bold"),
-             sg.Text('s', font="Arial 18 bold")],
+            [sg.Text('total time', key='-TIMER MESSAGE-', font="Arial 8")],
+            [sg.Text('0 h', key='-TOTAL TIME HOURS-', font="Arial 18 bold"),
+             sg.Text('0', key='-TOTAL TIME-', visible=False, font="Arial 18 bold")],
             [sg.Sizer(h_pixels=140, v_pixels=10)],
             ]
 
