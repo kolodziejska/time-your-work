@@ -16,6 +16,12 @@ def collapse(layout_c: list[list], key: str) -> sg.Column:
     return sg.pin(sg.Column(layout_c, key=key, visible=False))
 
 
+def error_popup(text: str) -> None:
+    """Show error popup with `text`"""
+    sg.popup(text, no_titlebar=True, grab_anywhere=True,
+             background_color='#ffffff')
+
+
 my_new_theme = {'BACKGROUND': '#f2f2f2',
                 'TEXT': '#333333',
                 'INPUT': '#ffffff',
