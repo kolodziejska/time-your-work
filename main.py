@@ -55,7 +55,8 @@ def find_cell(ws: openpyxl.worksheet, column_range: int, row_range: int,
     return None
 
 
-def write_data(file: str, task: str, time: int) -> None:
+def write_data(file: str, task: str, time: int, task_label: str,
+               time_label: str) -> None:
     """
     Add task and its time (in hours) to Excel sheet.
 
@@ -65,12 +66,12 @@ def write_data(file: str, task: str, time: int) -> None:
         `task_time` for column storing tasks' times
     :param task: name of the task
     :param time: time of the task in seconds
+    :param task_label: label of the column containing task names
+    :param time_label: label of the column containing time names
 
     """
     global arial_narrow_bold_font
     global arial_narrow_font
-    global task_name
-    global task_time
 
     if file is None or file == "":
         return
@@ -81,7 +82,7 @@ def write_data(file: str, task: str, time: int) -> None:
         print("File opened successfully")
     except FileNotFoundError:
         print(f"File {file} does not exist. Creating one...")
-        create_empty_file(file, task_name, task_time)
+        create_empty_file(file, task_label, time_label)
         wb = openpyxl.load_workbook(file)
         print("File created and opened successfully")
 
@@ -92,16 +93,16 @@ def write_data(file: str, task: str, time: int) -> None:
     max_c = ws.max_column
 
     # find in which columns task names and task times are stored
-    task_column = find_cell(ws, max_c, max_r, task_name).column_letter
-    time_column = find_cell(ws, max_c, max_r, task_time).column_letter
+    task_column_letter = find_cell(ws, max_c, max_r, task_label).column_letter
+    time_column_letter = find_cell(ws, max_c, max_r, time_label).column_letter
 
     # check if task with given name already exists
     existing_cell = find_cell(ws, max_c, max_r, task)
 
     if existing_cell is None:
         # if it doesn't exist, create it in new row
-        new_task_cell = f"{task_column}{max_r + 1}"
-        new_time_cell = f"{time_column}{max_r + 1}"
+        new_task_cell = f"{task_column_letter}{max_r + 1}"
+        new_time_cell = f"{time_column_letter}{max_r + 1}"
         ws[new_task_cell] = task
         ws[new_task_cell].font = arial_narrow_font
         ws[new_time_cell] = time / 3600  # write time in hours
@@ -110,7 +111,7 @@ def write_data(file: str, task: str, time: int) -> None:
     else:
         # if it exists, add new time to existing time
         task_row = existing_cell.row
-        time_cell = f"{time_column}{task_row}"
+        time_cell = f"{time_column_letter}{task_row}"
         existing_value = ws[time_cell].value  # existing_value in hours
         time += existing_value * 3600  # time in seconds
         ws[time_cell] = time / 3600  # write time back in hours
@@ -121,10 +122,14 @@ def write_data(file: str, task: str, time: int) -> None:
     wb.close()
 
 
-def list_existing_tasks(file: str) -> list[str]:
-    """Returns the list of the names of the existing tasks in sheet `ws`."""
+def list_existing_tasks(file: str, task_label: str) -> list[str]:
+    """Returns the list of the names of the existing tasks in Excel file.
 
-    global task_name
+    :param file: file name
+    :param task_label: label of the column with task names
+    :return: list of the names of the existing tasks.
+            Returns empty list if file name is not specified or valid.
+    """
 
     if file is None or file == "":
         return []
@@ -134,10 +139,8 @@ def list_existing_tasks(file: str) -> list[str]:
         wb = openpyxl.load_workbook(file)
         print("File opened successfully")
     except FileNotFoundError:
-        print(f"File {file} does not exist. Creating one...")
-        create_empty_file(file, task_name, task_time)
-        wb = openpyxl.load_workbook(file)
-        print("File created and opened successfully")
+        print(f"File {file} does not exist. Try again.")
+        return []
 
     ws = wb.active
     all_tasks = []
@@ -146,15 +149,15 @@ def list_existing_tasks(file: str) -> list[str]:
     max_r = ws.max_row
     max_c = ws.max_column
 
-    # find cell with value `task_name`
-    task_cell = find_cell(ws, max_c, max_r, task_name)
+    # find cell with value `task_label`
+    task_cell = find_cell(ws, max_c, max_r, task_label)
 
     start_row = task_cell.row + 1
     search_column = task_cell.column
 
     for row in range(start_row, max_r + 1):
-        task = ws.cell(row=row, column=search_column).value
-        all_tasks.append(task)
+        next_task = ws.cell(row=row, column=search_column).value
+        all_tasks.append(next_task)
 
     wb.close()
 
@@ -163,10 +166,11 @@ def list_existing_tasks(file: str) -> list[str]:
 
 if __name__ == '__main__':
 
-    task_name = "task name"
-    task_time = "task time"
     task_names = []
     start_time = None
+    section_opened = False
+    task_column_disabled = True
+    time_column_disabled = True
 
     arial_narrow_bold_font = Font(name="Arial Narrow", size=10.5, bold=True)
     arial_narrow_font = Font(name="Arial Narrow", size=10.5)
@@ -198,20 +202,43 @@ if __name__ == '__main__':
 
         if event == '-FILENAME-':
             file_name = str(values["-FILENAME-"])
+            task_column = str(values['-TASK COLUMN-'])
             print("file_name:", file_name)  # for logging
+            print("task_column: ", task_column)  # for logging
             print("existing task names: ", task_names)  # for logging
-            task_names = list_existing_tasks(file_name)
+            task_names = list_existing_tasks(file_name, task_column)
             window['-TASK NAMES-'].update(values=task_names)
             print("existing task names: ", task_names)  # for logging
+
+        if event.startswith('-OPEN SEC'):
+            section_opened = not section_opened
+            window['-OPEN SEC-'].update(SYMBOL_UP if section_opened else SYMBOL_DOWN)
+            window['-SEC-'].update(visible=section_opened)
+
+        if event == '-SET TASK COLUMN-':
+            task_column_disabled = not task_column_disabled
+            print(task_column_disabled)  # for logging
+            window['-SET TASK COLUMN-'].update(text='edit' if task_column_disabled else 'set')
+            window['-TASK COLUMN-'].update(disabled=task_column_disabled)
+
+        if event == '-SET TIME COLUMN-':
+            time_column_disabled = not time_column_disabled
+            print(time_column_disabled)  # for logging
+            window['-SET TIME COLUMN-'].update(text='edit' if time_column_disabled else 'set')
+            window['-TIME COLUMN-'].update(disabled=time_column_disabled)
 
         if event == 'Save':
             file_name = str(values['-FILENAME-'])
             new_task = str(values['-TASK NAMES-'])
             new_time = int(window['-TOTAL TIME-'].get())
+            task_column = str(values['-TASK COLUMN-'])
+            time_column = str(values['-TIME COLUMN-'])
             print("file_name:", file_name)  # for logging
             print("new_task:", new_task)  # for logging
+            print("task_column:", task_column)  # for logging
+            print("time_column:", time_column)  # for logging
             print("new_time: ", type(new_time), new_time)  # for logging
-            write_data(file_name, new_task, new_time)
+            write_data(file_name, new_task, new_time, task_column, time_column)
 
         if event == 'New task':
             # reset timer
@@ -219,7 +246,8 @@ if __name__ == '__main__':
             window['-TOTAL TIME-'].update(0)
             # update existing task names list in Combobox -TASK NAMES-
             file_name = str(values["-FILENAME-"])
-            task_names = list_existing_tasks(file_name)
+            task_column = str(values['-TASK COLUMN-'])
+            task_names = list_existing_tasks(file_name, task_column)
             window['-TASK NAMES-'].update(values=task_names)
 
     window.close()
